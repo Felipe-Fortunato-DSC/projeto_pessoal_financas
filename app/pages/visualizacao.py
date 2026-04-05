@@ -177,24 +177,26 @@ def _render_kpis(conn, user_ids: list[int], ano_ref: int, mes_ref: int) -> None:
         f"FROM investimentos WHERE user_id IN ({ph}) AND ano=? AND mes=?",
         user_ids + [ano_ref, mes_ref])
 
-    # --- Saldo ---
+    # --- Saldo (a partir de Abril/2026) ---
+    saldo_ini = 202604  # data fixa de início do controle
+
     sal_12m = _fq(conn,
         f"SELECT COALESCE(SUM(salario+alimentacao+transporte+ferias+renda_extra), 0) "
         f"FROM salarios WHERE user_id IN ({ph}) "
         f"AND (ano*100+mes) >= ? AND (ano*100+mes) <= ?",
-        user_ids + [cutoff_ini, cutoff_fim])
+        user_ids + [saldo_ini, cutoff_fim])
 
     desp_12m = _fq(conn,
         f"SELECT COALESCE(SUM(valor), 0) FROM despesas "
         f"WHERE user_id IN ({ph}) "
         f"AND (ano*100+mes) >= ? AND (ano*100+mes) <= ?",
-        user_ids + [cutoff_ini, cutoff_fim])
+        user_ids + [saldo_ini, cutoff_fim])
 
     inv_12m = _fq(conn,
         f"SELECT COALESCE(SUM(valor), 0) FROM investimentos "
         f"WHERE user_id IN ({ph}) "
         f"AND (ano*100+mes) >= ? AND (ano*100+mes) <= ?",
-        user_ids + [cutoff_ini, cutoff_fim])
+        user_ids + [saldo_ini, cutoff_fim])
 
     saldo_atual = sal_atual - desp_atual - inv_atual
     saldo_12m   = sal_12m - desp_12m - inv_12m
@@ -253,7 +255,7 @@ def _render_kpis(conn, user_ids: list[int], ano_ref: int, mes_ref: int) -> None:
 
     c1, c2 = st.columns(2)
     _metric_colorido(c1, f"Saldo — {label_mes}", saldo_atual)
-    _metric_colorido(c2, "Saldo últimos 12 meses", saldo_12m)
+    _metric_colorido(c2, "Saldo acumulado (desde Abr/2026)", saldo_12m)
 
     c1, c2 = st.columns(2)
     _metric_html(c1, f"Investimentos — {label_mes}", inv_atual, _delta_str(inv_delta))
