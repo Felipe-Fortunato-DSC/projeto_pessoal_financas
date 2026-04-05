@@ -47,9 +47,9 @@ st.sidebar.markdown(f"*{st.session_state.user_nome}*")
 st.sidebar.markdown("---")
 
 if USE_MOTHERDUCK:
-    st.sidebar.success(f"☁️ MotherDuck\n`{MOTHERDUCK_DB}`")
+    st.sidebar.success(f"☁️ Conectado ao MotherDuck\n`{MOTHERDUCK_DB}`")
 else:
-    st.sidebar.info(f"🦆 DuckDB local\n`financas.duckdb`")
+    st.sidebar.success("🦆 Conectado ao DuckDB local")
 
 st.sidebar.markdown("---")
 
