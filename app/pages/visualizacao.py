@@ -171,6 +171,12 @@ def _render_kpis(conn, user_ids: list[int], ano_ref: int, mes_ref: int) -> None:
         f") t",
         user_ids + [cutoff_ini, cutoff_fim])
 
+    # --- Investimentos ---
+    inv_atual = _fq(conn,
+        f"SELECT COALESCE(SUM(valor), 0) "
+        f"FROM investimentos WHERE user_id IN ({ph}) AND ano=? AND mes=?",
+        user_ids + [ano_ref, mes_ref])
+
     # --- Saldo ---
     sal_12m = _fq(conn,
         f"SELECT COALESCE(SUM(salario+alimentacao+transporte+ferias+renda_extra), 0) "
@@ -184,14 +190,14 @@ def _render_kpis(conn, user_ids: list[int], ano_ref: int, mes_ref: int) -> None:
         f"AND (ano*100+mes) >= ? AND (ano*100+mes) <= ?",
         user_ids + [cutoff_ini, cutoff_fim])
 
-    saldo_atual = sal_atual - desp_atual
-    saldo_12m   = sal_12m - desp_12m
+    inv_12m = _fq(conn,
+        f"SELECT COALESCE(SUM(valor), 0) FROM investimentos "
+        f"WHERE user_id IN ({ph}) "
+        f"AND (ano*100+mes) >= ? AND (ano*100+mes) <= ?",
+        user_ids + [cutoff_ini, cutoff_fim])
 
-    # --- Investimentos ---
-    inv_atual = _fq(conn,
-        f"SELECT COALESCE(SUM(valor), 0) "
-        f"FROM investimentos WHERE user_id IN ({ph}) AND ano=? AND mes=?",
-        user_ids + [ano_ref, mes_ref])
+    saldo_atual = sal_atual - desp_atual - inv_atual
+    saldo_12m   = sal_12m - desp_12m - inv_12m
 
     inv_acum_total = _acumulado_inv_ate(conn, user_ids, ano_ref, mes_ref)
     inv_acum_ant   = _acumulado_inv_ate(conn, user_ids, ano_ant, mes_ant)
