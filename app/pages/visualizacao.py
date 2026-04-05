@@ -170,6 +170,24 @@ def _render_kpis(conn, user_ids: list[int], ano_ref: int, mes_ref: int) -> None:
         user_ids + [cutoff_ini, cutoff_fim],
     ).fetchone()[0])
 
+    # --- Saldo ---
+    sal_12m = float(conn.execute(
+        f"SELECT COALESCE(SUM(salario+alimentacao+transporte+ferias+renda_extra), 0) "
+        f"FROM salarios WHERE user_id IN ({ph}) "
+        f"AND (ano*100+mes) >= ? AND (ano*100+mes) <= ?",
+        user_ids + [cutoff_ini, cutoff_fim],
+    ).fetchone()[0])
+
+    desp_12m = float(conn.execute(
+        f"SELECT COALESCE(SUM(valor), 0) FROM despesas "
+        f"WHERE user_id IN ({ph}) "
+        f"AND (ano*100+mes) >= ? AND (ano*100+mes) <= ?",
+        user_ids + [cutoff_ini, cutoff_fim],
+    ).fetchone()[0])
+
+    saldo_atual = sal_atual - desp_atual
+    saldo_12m   = sal_12m - desp_12m
+
     # --- Investimentos ---
     inv_atual = float(conn.execute(
         f"SELECT COALESCE(SUM(valor), 0) FROM investimentos "
@@ -196,18 +214,33 @@ def _render_kpis(conn, user_ids: list[int], ano_ref: int, mes_ref: int) -> None:
     def _delta_str(d) -> str | None:
         return f"{d:+.1f}%" if d is not None else None
 
+    def _metric_colorido(container, label: str, value: float) -> None:
+        cor = "#28a745" if value >= 0 else "#dc3545"
+        container.markdown(
+            f"<p style='font-size:0.875rem;margin-bottom:0.25rem;color:rgba(49,51,63,0.6)'>{label}</p>"
+            f"<p style='font-size:1.75rem;font-weight:700;margin:0;color:{cor}'>{_fmt(value)}</p>",
+            unsafe_allow_html=True,
+        )
+
     label_mes = f"{MESES_PT[mes_ref]}/{ano_ref}"
 
     rows = [
         (f"Salário — {label_mes}",       sal_atual,    sal_delta,  "Média últimos 12 meses", sal_media),
         (f"Despesas — {label_mes}",      desp_atual,   desp_delta, "Média últimos 12 meses", desp_media),
-        (f"Investimentos — {label_mes}", inv_atual,    inv_delta,  "Total acumulado",        inv_acum_total),
     ]
 
     for titulo, valor, delta, lbl2, val2 in rows:
         c1, c2 = st.columns(2)
         c1.metric(titulo, _fmt(valor), delta=_delta_str(delta))
         c2.metric(lbl2, _fmt(val2))
+
+    c1, c2 = st.columns(2)
+    _metric_colorido(c1, f"Saldo — {label_mes}", saldo_atual)
+    _metric_colorido(c2, "Saldo últimos 12 meses", saldo_12m)
+
+    c1, c2 = st.columns(2)
+    c1.metric(f"Investimentos — {label_mes}", _fmt(inv_atual), delta=_delta_str(inv_delta))
+    c2.metric("Total acumulado", _fmt(inv_acum_total))
 
 
 # ---------------------------------------------------------------------------
@@ -347,11 +380,3 @@ def render_visualizacao() -> None:
     st.header("Visão Geral")
     _render_secao(conn, ids, ano_ref, mes_ref, prefix="geral")
 
-    # -- Visão por Usuário ----------------------------------------------------
-    st.markdown("---")
-    st.header("Visão por Usuário")
-
-    escolha = st.selectbox("Selecionar usuário:", nomes, key="viz_usuario")
-    uid = ids[nomes.index(escolha)]
-
-    _render_secao(conn, [uid], ano_ref, mes_ref, prefix="usr")
