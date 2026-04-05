@@ -90,7 +90,8 @@ def _get_salarios_usuario(conn, user_id: int) -> pd.DataFrame:
 
 def _get_investimentos_usuario(conn, user_id: int) -> pd.DataFrame:
     return conn.execute(
-        "SELECT id, ano, mes, categoria, origem, observacao, valor "
+        "SELECT id, ano, mes, categoria, origem, observacao, valor, "
+        "COALESCE(tipo, 'entrada') AS tipo "
         "FROM investimentos WHERE user_id = ? ORDER BY ano DESC, mes DESC",
         [user_id],
     ).df()
@@ -340,11 +341,39 @@ def _render_investimentos(conn) -> None:
     if submitted:
         mes = [k for k, v in MESES_PT.items() if v == mes_nome][0]
         conn.execute(
-            "INSERT INTO investimentos (user_id, ano, mes, categoria, origem, valor, observacao) "
-            "VALUES (?,?,?,?,?,?,?)",
+            "INSERT INTO investimentos (user_id, ano, mes, categoria, origem, valor, observacao, tipo) "
+            "VALUES (?,?,?,?,?,?,?,'entrada')",
             [user_id, ano, mes, categoria, origem, valor, obs or None],
         )
         st.success(f"Investimento de R$ {valor:,.2f} registrado!")
+        st.rerun()
+
+    with st.expander("Saque de Investimento"):
+        with st.form("form_saque", clear_on_submit=True):
+            col1, col2 = st.columns(2)
+            with col1:
+                ano_s      = st.number_input("Ano", min_value=2020, max_value=2100,
+                                             value=hoje.year, step=1, key="saque_ano")
+                mes_nome_s = st.selectbox("Mês", list(MESES_PT.values()),
+                                          index=hoje.month - 1, key="saque_mes")
+                categoria_s = st.selectbox("Categoria", CATEGORIAS_INVESTIMENTOS, key="saque_cat")
+                origem_s    = st.selectbox("Origem", _ORIGENS_INVESTIMENTO, key="saque_orig")
+            with col2:
+                valor_s = st.number_input("Valor sacado (R$)", min_value=0.01, format="%.2f",
+                                          key="saque_valor")
+                obs_s   = st.text_input("Observação", key="saque_obs")
+
+            btn_saque = st.form_submit_button("Registrar Saque", type="primary",
+                                              use_container_width=True)
+
+    if btn_saque:
+        mes_s = [k for k, v in MESES_PT.items() if v == mes_nome_s][0]
+        conn.execute(
+            "INSERT INTO investimentos (user_id, ano, mes, categoria, origem, valor, observacao, tipo) "
+            "VALUES (?,?,?,?,?,?,?,'saida')",
+            [user_id, ano_s, mes_s, categoria_s, origem_s, valor_s, obs_s or None],
+        )
+        st.success(f"Saque de R$ {valor_s:,.2f} registrado!")
         st.rerun()
 
     st.markdown(f"**{selected_nome}**")

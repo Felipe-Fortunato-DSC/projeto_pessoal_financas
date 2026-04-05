@@ -89,6 +89,16 @@ def init_schema() -> None:
     except Exception:
         pass
 
+    try:
+        cols = [r[0] for r in conn.execute(
+            "SELECT column_name FROM information_schema.columns WHERE table_name='investimentos'"
+        ).fetchall()]
+        if cols and "tipo" not in cols:
+            conn.execute("ALTER TABLE investimentos ADD COLUMN tipo VARCHAR DEFAULT 'entrada'")
+            conn.execute("UPDATE investimentos SET tipo = 'entrada' WHERE tipo IS NULL")
+    except Exception:
+        pass
+
     _exec(conn, """
         CREATE TABLE IF NOT EXISTS users (
             id         INTEGER PRIMARY KEY DEFAULT nextval('seq_users'),
