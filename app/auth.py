@@ -110,8 +110,8 @@ def tela_alterar_senha() -> None:
                                                    use_container_width=True)
 
         if btn_alterar:
-            if not senha_atual or not nova_senha:
-                st.error("Preencha todos os campos.")
+            if not nova_senha:
+                st.error("Preencha a nova senha.")
             elif nova_senha != confirma:
                 st.error("As novas senhas não coincidem.")
             else:
