@@ -8,9 +8,9 @@ Ponto de entrada do aplicativo. Execute com:
 import streamlit as st
 
 from app.auth import login_page, tela_alterar_senha
+from app.database import db_mode, init_schema
 from app.pages.carregar_dados import render_carregar_dados
 from app.pages.visualizacao import render_visualizacao
-from config import USE_MOTHERDUCK, MOTHERDUCK_DB, DB_LOCAL_PATH
 
 st.set_page_config(
     page_title="Gestão Financeira – Família Fortunato",
@@ -18,6 +18,8 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed",
 )
+
+init_schema()
 
 # ---------------------------------------------------------------------------
 # Estado de sessão
@@ -39,17 +41,16 @@ if not st.session_state.logged_in:
     st.stop()
 
 # ---------------------------------------------------------------------------
-# Sidebar — boas-vindas, status de conexão e logout
+# Sidebar
 # ---------------------------------------------------------------------------
 primeiro_nome = st.session_state.user_nome.split()[0]
 st.sidebar.markdown(f"### Olá, {primeiro_nome}!")
 st.sidebar.markdown(f"*{st.session_state.user_nome}*")
-st.sidebar.markdown("---")
 
-if USE_MOTHERDUCK:
-    st.sidebar.success(f"☁️ Conectado ao MotherDuck\n`{MOTHERDUCK_DB}`")
+if db_mode() == "motherduck":
+    st.sidebar.caption("🟢 MotherDuck")
 else:
-    st.sidebar.success("🦆 Conectado ao DuckDB local")
+    st.sidebar.caption("🔴 Banco local (dados não persistem)")
 
 st.sidebar.markdown("---")
 

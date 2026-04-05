@@ -1,53 +1,67 @@
 """
 database.py
 -----------
-Gerencia a conexão com DuckDB (local) ou MotherDuck (produção)
-e inicializa o schema do banco de dados.
+Conexão com DuckDB local ou MotherDuck, seguindo o mesmo padrão do TJ-Processos.
 """
 
 import duckdb
 import streamlit as st
 
-from config import (
-    DB_LOCAL_PATH, MOTHERDUCK_TOKEN, MOTHERDUCK_DB, USE_MOTHERDUCK,
-    USUARIOS_INICIAIS, CATEGORIAS_PADRAO, CATEGORIAS_INVESTIMENTOS,
-)
+from config import DB_LOCAL_PATH, CATEGORIAS_PADRAO
 from app.utils import hash_password
 
 
-def _exec(conn: duckdb.DuckDBPyConnection, sql: str, params=None) -> None:
+@st.cache_resource
+def _get_conn() -> tuple[duckdb.DuckDBPyConnection, str]:
+    try:
+        token = st.secrets["motherduck"]["token"]
+        db    = st.secrets.get("MOTHERDUCK_DB", "financas")
+        tmp   = duckdb.connect(f"md:?motherduck_token={token}")
+        tmp.execute(f"CREATE DATABASE IF NOT EXISTS {db}")
+        tmp.close()
+        conn = duckdb.connect(f"md:{db}?motherduck_token={token}")
+        return conn, "motherduck"
+    except KeyError:
+        conn = duckdb.connect(DB_LOCAL_PATH)
+        return conn, "local"
+    except Exception as e:
+        st.error(f"Erro ao conectar ao MotherDuck: {e}")
+        conn = duckdb.connect(DB_LOCAL_PATH)
+        return conn, "local"
+
+
+def get_connection() -> duckdb.DuckDBPyConnection:
+    conn, _ = _get_conn()
+    return conn
+
+
+def db_mode() -> str:
+    _, mode = _get_conn()
+    return mode
+
+
+def _exec(conn, sql: str, params=None) -> None:
     sql = sql.strip()
     if sql:
         conn.execute(sql, params or [])
 
 
-@st.cache_resource
-def get_connection() -> duckdb.DuckDBPyConnection:
-    """
-    Retorna (e cacheia) a conexão com o banco.
-    - LOCAL : DuckDB em arquivo  (data/financas.duckdb)
-    - CLOUD : MotherDuck          (md:<db>?motherduck_token=<token>)
-    """
-    if USE_MOTHERDUCK:
-        conn = duckdb.connect(
-            f"md:{MOTHERDUCK_DB}?motherduck_token={MOTHERDUCK_TOKEN}"
-        )
-    else:
-        conn = duckdb.connect(DB_LOCAL_PATH)
-
-    _init_schema(conn)
-    return conn
+def _seed_password() -> str:
+    try:
+        return st.secrets.get("SEED_PASSWORD", "")
+    except Exception:
+        import os
+        return os.environ.get("SEED_PASSWORD", "")
 
 
-def _init_schema(conn: duckdb.DuckDBPyConnection) -> None:
-    """Cria sequências, tabelas e registros iniciais caso não existam."""
+def init_schema() -> None:
+    conn = get_connection()
 
-    # -- Sequências ------------------------------------------------------------
     for seq in ["seq_users", "seq_salarios", "seq_despesas",
                 "seq_investimentos", "seq_categorias"]:
         _exec(conn, f"CREATE SEQUENCE IF NOT EXISTS {seq} START 1")
 
-    # -- Migração: salarios schema antigo (valor/fonte) → novo ----------------
+    # Migrações schema antigo
     try:
         cols = [r[0] for r in conn.execute(
             "SELECT column_name FROM information_schema.columns WHERE table_name='salarios'"
@@ -57,7 +71,6 @@ def _init_schema(conn: duckdb.DuckDBPyConnection) -> None:
     except Exception:
         pass
 
-    # -- Migração: investimentos schema antigo (tipo/data) → novo -------------
     try:
         cols = [r[0] for r in conn.execute(
             "SELECT column_name FROM information_schema.columns WHERE table_name='investimentos'"
@@ -67,7 +80,6 @@ def _init_schema(conn: duckdb.DuckDBPyConnection) -> None:
     except Exception:
         pass
 
-    # -- Migração: adiciona coluna 'origem' em investimentos se não existir ---
     try:
         cols = [r[0] for r in conn.execute(
             "SELECT column_name FROM information_schema.columns WHERE table_name='investimentos'"
@@ -77,7 +89,6 @@ def _init_schema(conn: duckdb.DuckDBPyConnection) -> None:
     except Exception:
         pass
 
-    # -- Tabelas ---------------------------------------------------------------
     _exec(conn, """
         CREATE TABLE IF NOT EXISTS users (
             id         INTEGER PRIMARY KEY DEFAULT nextval('seq_users'),
@@ -133,15 +144,16 @@ def _init_schema(conn: duckdb.DuckDBPyConnection) -> None:
         )
     """)
 
-    # -- Seed: usuários --------------------------------------------------------
-    for u in USUARIOS_INICIAIS:
+    # Seed usuários
+    pwd = _seed_password()
+    for u in [("Monique Fortunato", pwd), ("Felipe Fortunato", pwd)]:
         conn.execute(
             "INSERT INTO users (nome, senha_hash) SELECT ?, ? "
             "WHERE NOT EXISTS (SELECT 1 FROM users WHERE nome = ?)",
-            [u["nome"], hash_password(u["senha"]), u["nome"]],
+            [u[0], hash_password(u[1]), u[0]],
         )
 
-    # -- Categorias de despesas: sincroniza com config -------------------------
+    # Seed categorias
     conn.execute("DELETE FROM categorias")
     for cat in CATEGORIAS_PADRAO:
         conn.execute("INSERT INTO categorias (nome) VALUES (?)", [cat])
