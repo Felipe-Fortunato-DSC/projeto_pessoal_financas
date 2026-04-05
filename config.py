@@ -1,6 +1,14 @@
 import os
 from pathlib import Path
 
+def _secret(key: str, default: str = "") -> str:
+    """Lê de st.secrets (Streamlit Cloud) ou variável de ambiente, com fallback."""
+    try:
+        import streamlit as st
+        return st.secrets.get(key, os.environ.get(key, default))
+    except Exception:
+        return os.environ.get(key, default)
+
 # ---------------------------------------------------------------------------
 # Diretórios
 # ---------------------------------------------------------------------------
@@ -15,16 +23,19 @@ DATA_DIR.mkdir(exist_ok=True)
 DB_LOCAL_PATH = str(DATA_DIR / "financas.duckdb")
 
 # MotherDuck (produção): defina MOTHERDUCK_TOKEN no ambiente para ativar
-MOTHERDUCK_TOKEN = os.environ.get("MOTHERDUCK_TOKEN", "")
-MOTHERDUCK_DB    = os.environ.get("MOTHERDUCK_DB", "financas")
+MOTHERDUCK_TOKEN = _secret("MOTHERDUCK_TOKEN")
+MOTHERDUCK_DB    = _secret("MOTHERDUCK_DB", "financas")
 USE_MOTHERDUCK   = bool(MOTHERDUCK_TOKEN)
 
 # ---------------------------------------------------------------------------
 # Usuários iniciais (seed)
+# Senha lida de variável de ambiente SEED_PASSWORD (Streamlit Secrets ou .env)
 # ---------------------------------------------------------------------------
+_SEED_PASSWORD = _secret("SEED_PASSWORD")
+
 USUARIOS_INICIAIS = [
-    {"nome": "Monique Fortunato", "senha": "Moniqu&2019"},
-    {"nome": "Felipe Fortunato",  "senha": "Moniqu&2019"},
+    {"nome": "Monique Fortunato", "senha": _SEED_PASSWORD},
+    {"nome": "Felipe Fortunato",  "senha": _SEED_PASSWORD},
 ]
 
 # ---------------------------------------------------------------------------
