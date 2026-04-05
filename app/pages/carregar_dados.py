@@ -285,6 +285,7 @@ def _render_salario(conn) -> None:
                 [user_id, mes, ano, salario, alim, transp, ferias, renda_extra],
             )
             st.success(f"Salário de {selected_nome} em {mes_nome}/{ano} registrado!")
+            st.rerun()
 
     # -- Tabela de registros -------------------------------------------------
     st.markdown(f"**{selected_nome}**")
@@ -344,6 +345,7 @@ def _render_investimentos(conn) -> None:
             [user_id, ano, mes, categoria, origem, valor, obs or None],
         )
         st.success(f"Investimento de R$ {valor:,.2f} registrado!")
+        st.rerun()
 
     st.markdown(f"**{selected_nome}**")
     df = _get_investimentos_usuario(conn, user_id)
@@ -389,6 +391,7 @@ def _render_despesas(conn) -> None:
             [st.session_state.user_id, mes, ano, categoria, obs or None, valor],
         )
         st.success(f"Despesa de R$ {valor:,.2f} registrada!")
+        st.rerun()
 
     # -- Tabela de registros -------------------------------------------------
     df = _get_despesas(conn)

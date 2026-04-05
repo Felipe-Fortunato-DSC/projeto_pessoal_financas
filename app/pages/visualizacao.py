@@ -367,7 +367,10 @@ def _render_secao(conn, user_ids: list[int], ano_ref: int, mes_ref: int,
 # ---------------------------------------------------------------------------
 
 def render_visualizacao() -> None:
-    st.title("Painel Financeiro")
+    col_titulo, col_btn = st.columns([9, 1])
+    col_titulo.title("Painel Financeiro")
+    if col_btn.button("↻", help="Atualizar painel", use_container_width=True):
+        st.rerun()
     conn = get_connection()
 
     usuarios = get_all_users()
