@@ -153,7 +153,10 @@ def init_schema() -> None:
             [u[0], hash_password(u[1]), u[0]],
         )
 
-    # Seed categorias
-    conn.execute("DELETE FROM categorias")
+    # Seed categorias (apenas insere as que ainda não existem)
     for cat in CATEGORIAS_PADRAO:
-        conn.execute("INSERT INTO categorias (nome) VALUES (?)", [cat])
+        conn.execute(
+            "INSERT INTO categorias (nome) SELECT ? WHERE NOT EXISTS "
+            "(SELECT 1 FROM categorias WHERE nome = ?)",
+            [cat, cat],
+        )

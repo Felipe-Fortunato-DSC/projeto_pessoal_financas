@@ -10,6 +10,7 @@ import streamlit as st
 from app.auth import login_page, tela_alterar_senha
 from app.database import db_mode, init_schema
 from app.pages.carregar_dados import render_carregar_dados
+from app.pages.gerenciamento import render_gerenciamento
 from app.pages.visualizacao import render_visualizacao
 
 st.set_page_config(
@@ -64,10 +65,13 @@ if st.sidebar.button("Sair", use_container_width=True):
 # ---------------------------------------------------------------------------
 # App principal
 # ---------------------------------------------------------------------------
-aba_painel, aba_dados = st.tabs(["Painel", "Carregar Dados"])
+aba_painel, aba_dados, aba_ger = st.tabs(["Painel", "Carregar Dados", "Gerenciamento"])
 
 with aba_painel:
     render_visualizacao()
 
 with aba_dados:
     render_carregar_dados()
+
+with aba_ger:
+    render_gerenciamento()
