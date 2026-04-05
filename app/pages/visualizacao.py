@@ -94,7 +94,7 @@ def _get_investimentos_periodo(conn, user_ids: list[int], ano_ini: int, mes_ini:
     ph = _ph(user_ids)
     return conn.execute(
         f"SELECT i.ano, i.mes, u.nome AS usuario, i.categoria, "
-        f"(CASE WHEN i.tipo='entrada' THEN i.valor ELSE -i.valor END) AS valor "
+        f"(CASE WHEN COALESCE(i.tipo,'entrada')='entrada' THEN i.valor ELSE -i.valor END) AS valor "
         f"FROM investimentos i JOIN users u ON i.user_id = u.id "
         f"WHERE i.user_id IN ({ph}) "
         f"  AND (i.ano*100+i.mes) >= ? AND (i.ano*100+i.mes) <= ? "
@@ -106,7 +106,7 @@ def _get_investimentos_periodo(conn, user_ids: list[int], ano_ini: int, mes_ini:
 def _acumulado_inv_ate(conn, user_ids: list[int], ano: int, mes: int) -> float:
     ph = _ph(user_ids)
     r = conn.execute(
-        f"SELECT COALESCE(SUM(CASE WHEN tipo='entrada' THEN valor ELSE -valor END), 0) "
+        f"SELECT COALESCE(SUM(CASE WHEN COALESCE(tipo,'entrada')='entrada' THEN valor ELSE -valor END), 0) "
         f"FROM investimentos WHERE user_id IN ({ph}) AND (ano*100+mes) <= ?",
         user_ids + [ano * 100 + mes],
     ).fetchone()[0]
@@ -191,7 +191,7 @@ def _render_kpis(conn, user_ids: list[int], ano_ref: int, mes_ref: int) -> None:
 
     # --- Investimentos ---
     inv_atual = float(conn.execute(
-        f"SELECT COALESCE(SUM(CASE WHEN tipo='entrada' THEN valor ELSE -valor END), 0) "
+        f"SELECT COALESCE(SUM(CASE WHEN COALESCE(tipo,'entrada')='entrada' THEN valor ELSE -valor END), 0) "
         f"FROM investimentos WHERE user_id IN ({ph}) AND ano=? AND mes=?",
         user_ids + [ano_ref, mes_ref],
     ).fetchone()[0])

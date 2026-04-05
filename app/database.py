@@ -89,15 +89,18 @@ def init_schema() -> None:
     except Exception:
         pass
 
+    # Migração coluna tipo — tenta SELECT direto para garantir que a coluna existe
     try:
-        cols = [r[0] for r in conn.execute(
-            "SELECT column_name FROM information_schema.columns WHERE table_name='investimentos'"
-        ).fetchall()]
-        if cols and "tipo" not in cols:
-            conn.execute("ALTER TABLE investimentos ADD COLUMN tipo VARCHAR DEFAULT 'entrada'")
-            conn.execute("UPDATE investimentos SET tipo = 'entrada' WHERE tipo IS NULL")
+        conn.execute("SELECT tipo FROM investimentos LIMIT 0")
     except Exception:
-        pass
+        try:
+            conn.execute("ALTER TABLE investimentos ADD COLUMN tipo VARCHAR")
+        except Exception:
+            pass
+        try:
+            conn.execute("UPDATE investimentos SET tipo = 'entrada' WHERE tipo IS NULL")
+        except Exception:
+            pass
 
     _exec(conn, """
         CREATE TABLE IF NOT EXISTS users (
