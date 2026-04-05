@@ -228,8 +228,7 @@ def _render_consulta_investimentos(conn) -> None:
     df = conn.execute(
         f"SELECT u.nome AS Usuário, i.ano AS Ano, i.mes AS _mes, "
         f"i.categoria AS Categoria, COALESCE(i.origem, '') AS Origem, "
-        f"COALESCE(i.observacao, '') AS Observação, i.valor AS Valor, "
-        f"COALESCE(i.tipo, 'entrada') AS _tipo "
+        f"COALESCE(i.observacao, '') AS Observação, i.valor AS _valor "
         f"FROM investimentos i JOIN users u ON i.user_id = u.id {where} "
         f"ORDER BY i.ano DESC, i.mes DESC",
         params,
@@ -240,8 +239,9 @@ def _render_consulta_investimentos(conn) -> None:
         return
 
     df.insert(2, "Mês", df["_mes"].map(MESES_PT))
-    df["Situação"] = df["_tipo"].map({"entrada": "Entrada", "saida": "Saída"})
-    df = df.drop(columns=["_mes", "_tipo"])
+    df["Situação"] = df["_valor"].apply(lambda v: "Entrada" if v >= 0 else "Saída")
+    df["Valor"]    = df["_valor"].abs()
+    df = df.drop(columns=["_mes", "_valor"])
 
     fatia, page, n_pages, total = _paginar(df, "page_cinv")
     st.dataframe(fatia, use_container_width=True, hide_index=True)

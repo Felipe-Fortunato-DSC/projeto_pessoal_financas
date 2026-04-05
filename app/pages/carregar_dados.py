@@ -90,8 +90,7 @@ def _get_salarios_usuario(conn, user_id: int) -> pd.DataFrame:
 
 def _get_investimentos_usuario(conn, user_id: int) -> pd.DataFrame:
     return conn.execute(
-        "SELECT id, ano, mes, categoria, origem, observacao, valor, "
-        "COALESCE(tipo, 'entrada') AS tipo "
+        "SELECT id, ano, mes, categoria, origem, observacao, valor "
         "FROM investimentos WHERE user_id = ? ORDER BY ano DESC, mes DESC",
         [user_id],
     ).df()
@@ -341,8 +340,8 @@ def _render_investimentos(conn) -> None:
     if submitted:
         mes = [k for k, v in MESES_PT.items() if v == mes_nome][0]
         conn.execute(
-            "INSERT INTO investimentos (user_id, ano, mes, categoria, origem, valor, observacao, tipo) "
-            "VALUES (?,?,?,?,?,?,?,'entrada')",
+            "INSERT INTO investimentos (user_id, ano, mes, categoria, origem, valor, observacao) "
+            "VALUES (?,?,?,?,?,?,?)",
             [user_id, ano, mes, categoria, origem, valor, obs or None],
         )
         st.success(f"Investimento de R$ {valor:,.2f} registrado!")
@@ -369,9 +368,9 @@ def _render_investimentos(conn) -> None:
     if btn_saque:
         mes_s = [k for k, v in MESES_PT.items() if v == mes_nome_s][0]
         conn.execute(
-            "INSERT INTO investimentos (user_id, ano, mes, categoria, origem, valor, observacao, tipo) "
-            "VALUES (?,?,?,?,?,?,?,'saida')",
-            [user_id, ano_s, mes_s, categoria_s, origem_s, valor_s, obs_s or None],
+            "INSERT INTO investimentos (user_id, ano, mes, categoria, origem, valor, observacao) "
+            "VALUES (?,?,?,?,?,?,?)",
+            [user_id, ano_s, mes_s, categoria_s, origem_s, -valor_s, obs_s or None],
         )
         st.success(f"Saque de R$ {valor_s:,.2f} registrado!")
         st.rerun()
