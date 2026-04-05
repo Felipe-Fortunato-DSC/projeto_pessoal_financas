@@ -214,33 +214,46 @@ def _render_kpis(conn, user_ids: list[int], ano_ref: int, mes_ref: int) -> None:
     def _delta_str(d) -> str | None:
         return f"{d:+.1f}%" if d is not None else None
 
+    _LABEL_STYLE = "font-size:0.875rem;margin-bottom:0.25rem;color:rgba(49,51,63,0.6)"
+    _VALUE_STYLE = "font-size:1.75rem;font-weight:700;margin:0"
+
+    def _metric_html(container, label: str, value: float, delta_s: str | None = None) -> None:
+        delta_html = ""
+        if delta_s:
+            cor_d = "#28a745" if delta_s.startswith("+") else "#dc3545"
+            delta_html = f"<p style='font-size:0.8rem;margin:2px 0 0;color:{cor_d}'>{delta_s}</p>"
+        container.markdown(
+            f"<p style='{_LABEL_STYLE}'>{label}</p>"
+            f"<p style='{_VALUE_STYLE};color:inherit'>{_fmt(value)}</p>"
+            f"{delta_html}",
+            unsafe_allow_html=True,
+        )
+
     def _metric_colorido(container, label: str, value: float) -> None:
         cor = "#28a745" if value >= 0 else "#dc3545"
         container.markdown(
-            f"<p style='font-size:0.875rem;margin-bottom:0.25rem;color:rgba(49,51,63,0.6)'>{label}</p>"
-            f"<p style='font-size:1.75rem;font-weight:700;margin:0;color:{cor}'>{_fmt(value)}</p>",
+            f"<p style='{_LABEL_STYLE}'>{label}</p>"
+            f"<p style='{_VALUE_STYLE};color:{cor}'>{_fmt(value)}</p>",
             unsafe_allow_html=True,
         )
 
     label_mes = f"{MESES_PT[mes_ref]}/{ano_ref}"
 
-    rows = [
-        (f"Salário — {label_mes}",       sal_atual,    sal_delta,  "Média últimos 12 meses", sal_media),
-        (f"Despesas — {label_mes}",      desp_atual,   desp_delta, "Média últimos 12 meses", desp_media),
-    ]
+    c1, c2 = st.columns(2)
+    _metric_html(c1, f"Salário — {label_mes}", sal_atual, _delta_str(sal_delta))
+    _metric_html(c2, "Média últimos 12 meses", sal_media)
 
-    for titulo, valor, delta, lbl2, val2 in rows:
-        c1, c2 = st.columns(2)
-        c1.metric(titulo, _fmt(valor), delta=_delta_str(delta))
-        c2.metric(lbl2, _fmt(val2))
+    c1, c2 = st.columns(2)
+    _metric_html(c1, f"Despesas — {label_mes}", desp_atual, _delta_str(desp_delta))
+    _metric_html(c2, "Média últimos 12 meses", desp_media)
 
     c1, c2 = st.columns(2)
     _metric_colorido(c1, f"Saldo — {label_mes}", saldo_atual)
     _metric_colorido(c2, "Saldo últimos 12 meses", saldo_12m)
 
     c1, c2 = st.columns(2)
-    c1.metric(f"Investimentos — {label_mes}", _fmt(inv_atual), delta=_delta_str(inv_delta))
-    c2.metric("Total acumulado", _fmt(inv_acum_total))
+    _metric_html(c1, f"Investimentos — {label_mes}", inv_atual, _delta_str(inv_delta))
+    _metric_html(c2, "Total acumulado", inv_acum_total)
 
 
 # ---------------------------------------------------------------------------
@@ -298,11 +311,11 @@ def _chart_despesas_barra_mes(conn, user_ids: list[int],
         st.info(f"Sem despesas em {MESES_PT[mes_ref]}/{ano_ref}.")
         return
     fig = px.bar(
-        df, x="categoria", y="valor", text_auto=".2s",
+        df, x="categoria", y="valor", color="categoria", text_auto=".2s",
         labels={"categoria": "", "valor": "Valor (R$)"},
         title=f"Despesas por Categoria — {MESES_PT[mes_ref]}/{ano_ref}",
     )
-    fig.update_layout(xaxis_tickangle=-30)
+    fig.update_layout(xaxis_tickangle=-30, showlegend=False)
     st.plotly_chart(fig, use_container_width=True, key=key)
 
 
@@ -343,23 +356,25 @@ def _render_secao(conn, user_ids: list[int], ano_ref: int, mes_ref: int,
 
     _render_kpis(conn, user_ids, ano_ref, mes_ref)
 
-    st.markdown("")
-
     df_sal  = _get_salarios_periodo(conn, user_ids, ano_12m, mes_12m, ano_ref, mes_ref)
     df_desp = _get_despesas_periodo(conn, user_ids, ano_12m, mes_12m, ano_ref, mes_ref)
     df_inv  = _get_investimentos_periodo(conn, user_ids, ano_12m, mes_12m, ano_ref, mes_ref)
 
+    st.markdown("---")
+    st.subheader("Salário")
+    _chart_salario_linha(df_sal, key=f"{prefix}_sal_line")
+
+    st.markdown("---")
+    st.subheader("Despesas")
     col1, col2 = st.columns(2)
     with col1:
-        _chart_salario_linha(df_sal, key=f"{prefix}_sal_line")
-    with col2:
         _chart_despesas_linha(df_desp, key=f"{prefix}_desp_line")
-
-    col3, col4 = st.columns(2)
-    with col3:
+    with col2:
         _chart_despesas_barra_mes(conn, user_ids, ano_ref, mes_ref, key=f"{prefix}_desp_bar")
-    with col4:
-        _chart_investimentos_linha(df_inv, prefix=prefix)
+
+    st.markdown("---")
+    st.subheader("Investimentos")
+    _chart_investimentos_linha(df_inv, prefix=prefix)
 
 
 # ---------------------------------------------------------------------------
