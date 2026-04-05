@@ -23,7 +23,7 @@ DATA_DIR.mkdir(exist_ok=True)
 DB_LOCAL_PATH = str(DATA_DIR / "financas.duckdb")
 
 # MotherDuck (produção): defina MOTHERDUCK_TOKEN no ambiente para ativar
-MOTHERDUCK_TOKEN = _secret("MOTHERDUCK_TOKEN")
+MOTHERDUCK_TOKEN = _secret("token")
 MOTHERDUCK_DB    = _secret("MOTHERDUCK_DB", "financas")
 USE_MOTHERDUCK   = bool(MOTHERDUCK_TOKEN)
 
