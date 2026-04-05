@@ -123,86 +123,98 @@ def _acumulado_inv_ate(conn, user_ids: list[int], ano: int, mes: int) -> float:
         user_ids + [ano * 100 + mes])
 
 
+_INICIO = 202604  # Abril/2026 — data de início de todos os cálculos
+
+
 def _render_kpis(conn, user_ids: list[int], ano_ref: int, mes_ref: int) -> None:
     ano_ant, mes_ant = _mes_anterior(ano_ref, mes_ref)
-    ano_12m, mes_12m = _n_meses_atras(ano_ref, mes_ref, 11)
     ph = _ph(user_ids)
 
-    cutoff_ini = ano_12m * 100 + mes_12m
     cutoff_fim = ano_ref * 100 + mes_ref
+    # Mês anterior só entra no delta se for >= Abril/2026
+    ant_valido = ano_ant * 100 + mes_ant >= _INICIO
 
     # --- Salário ---
     sal_atual = _fq(conn,
         f"SELECT COALESCE(SUM(salario+alimentacao+transporte+ferias+renda_extra), 0) "
-        f"FROM salarios WHERE user_id IN ({ph}) AND ano=? AND mes=?",
+        f"FROM salarios WHERE user_id IN ({ph}) AND ano=? AND mes=? "
+        f"AND (ano*100+mes) >= {_INICIO}",
         user_ids + [ano_ref, mes_ref])
 
     sal_ant = _fq(conn,
         f"SELECT COALESCE(SUM(salario+alimentacao+transporte+ferias+renda_extra), 0) "
-        f"FROM salarios WHERE user_id IN ({ph}) AND ano=? AND mes=?",
-        user_ids + [ano_ant, mes_ant])
+        f"FROM salarios WHERE user_id IN ({ph}) AND ano=? AND mes=? "
+        f"AND (ano*100+mes) >= {_INICIO}",
+        user_ids + [ano_ant, mes_ant]) if ant_valido else 0.0
 
     sal_media = _fq(conn,
         f"SELECT COALESCE(AVG(t.total), 0) FROM ("
         f"  SELECT SUM(salario+alimentacao+transporte+ferias+renda_extra) AS total "
         f"  FROM salarios WHERE user_id IN ({ph}) "
-        f"  AND (ano*100+mes) >= ? AND (ano*100+mes) <= ? "
+        f"  AND (ano*100+mes) >= {_INICIO} AND (ano*100+mes) <= ? "
         f"  GROUP BY ano, mes"
         f") t",
-        user_ids + [cutoff_ini, cutoff_fim])
+        user_ids + [cutoff_fim])
 
     # --- Despesas ---
     desp_atual = _fq(conn,
         f"SELECT COALESCE(SUM(valor), 0) FROM despesas "
-        f"WHERE user_id IN ({ph}) AND ano=? AND mes=?",
+        f"WHERE user_id IN ({ph}) AND ano=? AND mes=? "
+        f"AND (ano*100+mes) >= {_INICIO}",
         user_ids + [ano_ref, mes_ref])
 
     desp_ant = _fq(conn,
         f"SELECT COALESCE(SUM(valor), 0) FROM despesas "
-        f"WHERE user_id IN ({ph}) AND ano=? AND mes=?",
-        user_ids + [ano_ant, mes_ant])
+        f"WHERE user_id IN ({ph}) AND ano=? AND mes=? "
+        f"AND (ano*100+mes) >= {_INICIO}",
+        user_ids + [ano_ant, mes_ant]) if ant_valido else 0.0
 
     desp_media = _fq(conn,
         f"SELECT COALESCE(AVG(t.total), 0) FROM ("
         f"  SELECT SUM(valor) AS total "
         f"  FROM despesas WHERE user_id IN ({ph}) "
-        f"  AND (ano*100+mes) >= ? AND (ano*100+mes) <= ? "
+        f"  AND (ano*100+mes) >= {_INICIO} AND (ano*100+mes) <= ? "
         f"  GROUP BY ano, mes"
         f") t",
-        user_ids + [cutoff_ini, cutoff_fim])
+        user_ids + [cutoff_fim])
 
-    # --- Investimentos ---
+    # --- Investimentos (mensal) ---
     inv_atual = _fq(conn,
-        f"SELECT COALESCE(SUM(valor), 0) "
-        f"FROM investimentos WHERE user_id IN ({ph}) AND ano=? AND mes=?",
+        f"SELECT COALESCE(SUM(valor), 0) FROM investimentos "
+        f"WHERE user_id IN ({ph}) AND ano=? AND mes=? "
+        f"AND (ano*100+mes) >= {_INICIO}",
         user_ids + [ano_ref, mes_ref])
 
-    # --- Saldo (a partir de Abril/2026) ---
-    saldo_ini = 202604  # data fixa de início do controle
+    inv_ant = _fq(conn,
+        f"SELECT COALESCE(SUM(valor), 0) FROM investimentos "
+        f"WHERE user_id IN ({ph}) AND ano=? AND mes=? "
+        f"AND (ano*100+mes) >= {_INICIO}",
+        user_ids + [ano_ant, mes_ant]) if ant_valido else 0.0
 
+    # Total acumulado: sem restrição de data (histórico completo)
+    inv_acum_total = _acumulado_inv_ate(conn, user_ids, ano_ref, mes_ref)
+
+    # --- Saldo acumulado desde Abril/2026 ---
     sal_12m = _fq(conn,
         f"SELECT COALESCE(SUM(salario+alimentacao+transporte+ferias+renda_extra), 0) "
         f"FROM salarios WHERE user_id IN ({ph}) "
-        f"AND (ano*100+mes) >= ? AND (ano*100+mes) <= ?",
-        user_ids + [saldo_ini, cutoff_fim])
+        f"AND (ano*100+mes) >= {_INICIO} AND (ano*100+mes) <= ?",
+        user_ids + [cutoff_fim])
 
     desp_12m = _fq(conn,
         f"SELECT COALESCE(SUM(valor), 0) FROM despesas "
         f"WHERE user_id IN ({ph}) "
-        f"AND (ano*100+mes) >= ? AND (ano*100+mes) <= ?",
-        user_ids + [saldo_ini, cutoff_fim])
+        f"AND (ano*100+mes) >= {_INICIO} AND (ano*100+mes) <= ?",
+        user_ids + [cutoff_fim])
 
     inv_12m = _fq(conn,
         f"SELECT COALESCE(SUM(valor), 0) FROM investimentos "
         f"WHERE user_id IN ({ph}) "
-        f"AND (ano*100+mes) >= ? AND (ano*100+mes) <= ?",
-        user_ids + [saldo_ini, cutoff_fim])
+        f"AND (ano*100+mes) >= {_INICIO} AND (ano*100+mes) <= ?",
+        user_ids + [cutoff_fim])
 
     saldo_atual = sal_atual - desp_atual - inv_atual
     saldo_12m   = sal_12m - desp_12m - inv_12m
-
-    inv_acum_total = _acumulado_inv_ate(conn, user_ids, ano_ref, mes_ref)
-    inv_acum_ant   = _acumulado_inv_ate(conn, user_ids, ano_ant, mes_ant)
 
     # --- Delta ---
     def _delta(atual: float, anterior: float):
@@ -212,7 +224,7 @@ def _render_kpis(conn, user_ids: list[int], ano_ref: int, mes_ref: int) -> None:
 
     sal_delta  = _delta(sal_atual, sal_ant)
     desp_delta = _delta(desp_atual, desp_ant)
-    inv_delta  = _delta(inv_atual, inv_acum_ant)
+    inv_delta  = _delta(inv_atual, inv_ant)
 
     def _fmt(v: float) -> str:
         return f"R$ {v:,.2f}"
@@ -247,11 +259,11 @@ def _render_kpis(conn, user_ids: list[int], ano_ref: int, mes_ref: int) -> None:
 
     c1, c2 = st.columns(2)
     _metric_html(c1, f"Salário — {label_mes}", sal_atual, _delta_str(sal_delta))
-    _metric_html(c2, "Média últimos 12 meses", sal_media)
+    _metric_html(c2, "Média desde Abr/2026", sal_media)
 
     c1, c2 = st.columns(2)
     _metric_html(c1, f"Despesas — {label_mes}", desp_atual, _delta_str(desp_delta))
-    _metric_html(c2, "Média últimos 12 meses", desp_media)
+    _metric_html(c2, "Média desde Abr/2026", desp_media)
 
     c1, c2 = st.columns(2)
     _metric_colorido(c1, f"Saldo — {label_mes}", saldo_atual)
